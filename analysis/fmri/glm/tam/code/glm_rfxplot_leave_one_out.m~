@@ -1,0 +1,75 @@
+%% Non intractive mode of rfxplot
+
+%%
+
+function glm_rfxplot_leave_one_out(glmName, contrastName, first_iCol, roiName)
+
+rp = '/home/radachi/research/CD/analysis/fmri/glm';
+
+load(['/home/radachi/research/CD/analysis/subjectList.mat']);
+
+% Define globalmax for each ROI (from 2ndlevel using all subjects)
+ROINAME = {'dlPFCR'};
+MAXCOORDINATE = {[46,26,35]}; % Peak using all particiapnts within independent ROI
+
+beta = zeros(21,3);
+
+for iSub = 1:numel(subjects)
+    
+    %%
+    % Get coordinates used for each subject
+    % (nearest max to global max excluding subject)
+    
+    % Load SPM.mat
+    load([rp '/' glmName '/result/2ndlevel_leave_one_out/' ...
+        subjects{iSub} '/' contrastName '/SPM.mat']);
+    % Load template xSPM for 2nd level contrast
+    load([rp '/glm_rfxplot/2ndlevel_xSPM.mat']);
+    xSPM.swd = [rp '/' glmName '/result/2ndlevel_leave_one_out/' ...
+        subjects{iSub} '/' contrastName];
+    xSPM.title = contrastName;
+    xSPM.thresDesc = 'none';
+    
+    [hreg, xSPM, SPM] = spm_results_ui('Setup', xSPM);
+    
+    spm_mip_ui('SetCoords', MAXCOORDINATE{find(ismember(ROINAME, roiName))});
+    
+    nearestMax(iSub,:) = spm_mip_ui('Jump', spm_mip_ui('FindMIPax'), 'nrmax');
+    
+    clear xSPM SPM
+    
+    %% rfxplot
+    
+    % Load RFX SPM.mat
+    rfxdir = [rp '/' glmName '/result/2ndlevel/' contrastName];
+    load(fullfile(rfxdir,'SPM.mat'));
+    
+    % Create xSPM struct
+    load([rp '/glm_rfxplot/rfx_xSPM.mat']);
+    xSPM.swd = rfxdir;
+    xSPM.title = contrastName;
+    
+    % define RFX coordinates
+    rfxxyz = nearestMax(iSub,:);
+    
+    % Load a previously saved opts struct
+    load([rp '/glm_rfxplot/rfx_opts_leave_one_out.mat']);
+    opts.rfxdir = rfxdir;
+    opts.select = first_iCol;
+    %opts.mask = {[rp '/roi_analysis/roi_image/' roiNameSize '_roi.nii']};
+    opts.group = {iSub};
+    
+    % Call rfxplot non-interactively
+    data = rfxplot(rfxxyz,opts,SPM,xSPM);
+    
+    % Save the result
+    beta(iSub,:) = data(iSub).effect{:};
+    
+    clear xSPM SPM
+    
+end
+
+save([rp '/glm_rfxplot/result/' glmName '_' contrastName '_' ...
+    roiName '_leave_one_out.mat'], 'beta', 'nearestMax');
+
+end
